@@ -1,220 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Infinite Craft MAX</title>
+<title>Zpice Live Builder</title>
 <style>
 body {
-    margin: 0;
-    font-family: Arial;
-    background: radial-gradient(circle, #0a0a0a, #000);
-    color: white;
-    overflow: hidden;
+  background: #111;
+  color: white;
+  font-family: Arial;
+  text-align: center;
 }
-
-h1 {
-    text-align: center;
-    text-shadow: 0 0 10px #0ff;
+textarea {
+  width: 90%;
+  height: 160px;
+  margin: 10px;
 }
-
-#topbar {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
+input, button {
+  padding: 10px;
+  margin: 5px;
 }
-
-#search {
-    padding: 8px;
-    border-radius: 8px;
-    border: none;
+button {
+  background: #00ffcc;
+  cursor: pointer;
 }
-
-#reset {
-    padding: 8px;
-    border-radius: 8px;
-    background: red;
-    color: white;
-    border: none;
-}
-
-#game {
-    display: flex;
-    height: 90vh;
-}
-
-#elements {
-    width: 25%;
-    overflow-y: auto;
-    border-right: 2px solid #222;
-    padding: 10px;
-}
-
-#workspace {
-    flex: 1;
-    position: relative;
-}
-
-.element {
-    padding: 10px;
-    margin: 5px;
-    background: #111;
-    border-radius: 10px;
-    cursor: grab;
-    box-shadow: 0 0 5px #0ff;
-}
-
-.item {
-    position: absolute;
-    padding: 10px;
-    background: #222;
-    border-radius: 10px;
-    cursor: grab;
-    user-select: none;
-    box-shadow: 0 0 10px #0ff;
-}
-
-#info {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    font-size: 14px;
+iframe {
+  width: 90%;
+  height: 250px;
+  border: 2px solid #00ffcc;
 }
 </style>
 </head>
 <body>
 
-<h1>🌌 Infinite Craft MAX</h1>
+<h2>🌐 ZPICE LIVE PUBLISHER</h2>
 
-<div id="topbar">
-    <input id="search" placeholder="Search elements...">
-    <button id="reset">Reset</button>
-</div>
+<textarea id="htmlInput" placeholder="Paste HTML here..."></textarea><br>
+<input id="name" placeholder="mysite"><br>
 
-<div id="game">
-    <div id="elements"></div>
-    <div id="workspace"></div>
-</div>
+<button onclick="publish()">🚀 Publish Live</button>
 
-<div id="info">Discovered: <span id="count">0</span></div>
+<h3 id="status"></h3>
+
+<iframe id="preview"></iframe>
 
 <script>
-let base = ["Water","Fire","Earth","Air"];
-let elements = JSON.parse(localStorage.getItem("elements")) || base;
-let workspace = document.getElementById("workspace");
+async function publish() {
+  let html = document.getElementById("htmlInput").value;
+  let name = document.getElementById("name").value;
 
-function save() {
-    localStorage.setItem("elements", JSON.stringify(elements));
+  if (!html || !name) {
+    alert("Fill everything!");
+    return;
+  }
+
+  let res = await fetch("/publish", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ name, html })
+  });
+
+  let data = await res.json();
+
+  document.getElementById("status").innerHTML =
+    "✅ Live at: " + data.url;
+
+  document.getElementById("preview").src = data.url;
 }
-
-function renderList(filter="") {
-    let el = document.getElementById("elements");
-    el.innerHTML = "";
-    
-    elements
-    .filter(e => e.toLowerCase().includes(filter.toLowerCase()))
-    .forEach(name => {
-        let div = document.createElement("div");
-        div.className = "element";
-        div.innerText = name;
-
-        div.onmousedown = (e) => spawn(name, e.clientX, e.clientY);
-
-        el.appendChild(div);
-    });
-
-    document.getElementById("count").innerText = elements.length;
-}
-
-function spawn(name, x, y) {
-    let div = document.createElement("div");
-    div.className = "item";
-    div.innerText = name;
-    div.style.left = x + "px";
-    div.style.top = y + "px";
-
-    workspace.appendChild(div);
-
-    drag(div);
-}
-
-function drag(el) {
-    let offsetX, offsetY;
-
-    el.onmousedown = (e) => {
-        offsetX = e.offsetX;
-        offsetY = e.offsetY;
-
-        document.onmousemove = (e) => {
-            el.style.left = (e.clientX - offsetX) + "px";
-            el.style.top = (e.clientY - offsetY) + "px";
-
-            checkCombine(el);
-        };
-
-        document.onmouseup = () => {
-            document.onmousemove = null;
-        };
-    };
-}
-
-function checkCombine(a) {
-    document.querySelectorAll(".item").forEach(b => {
-        if (a === b) return;
-
-        let r1 = a.getBoundingClientRect();
-        let r2 = b.getBoundingClientRect();
-
-        if (!(r1.right < r2.left || r1.left > r2.right ||
-              r1.bottom < r2.top || r1.top > r2.bottom)) {
-
-            combine(a, b);
-        }
-    });
-}
-
-function combine(a, b) {
-    let name1 = a.innerText;
-    let name2 = b.innerText;
-
-    let result = generate(name1, name2);
-
-    a.remove();
-    b.remove();
-
-    spawn(result, window.innerWidth/2, window.innerHeight/2);
-
-    if (!elements.includes(result)) {
-        elements.push(result);
-        save();
-        renderList();
-    }
-}
-
-function generate(a, b) {
-    let combos = [
-        "Fusion","Core","Energy","Storm","Beast","Machine","Spirit","Dimension",
-        "Galaxy","Plasma","Shadow","Light","Crystal","Chaos","Time","Void"
-    ];
-
-    // deterministic randomness
-    let seed = (a + b).length + a.charCodeAt(0) + b.charCodeAt(0);
-    let word = combos[seed % combos.length];
-
-    return a + " " + word + " " + b;
-}
-
-document.getElementById("search").oninput = (e) => {
-    renderList(e.target.value);
-};
-
-document.getElementById("reset").onclick = () => {
-    if (confirm("Reset progress?")) {
-        localStorage.clear();
-        location.reload();
-    }
-};
-
-renderList();
 </script>
 
 </body>
